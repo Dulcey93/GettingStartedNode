@@ -1,54 +1,59 @@
-## Child Process in Node.js
-Start learning about child process in Node.js
-## Child Process
-A child process is a process created by another process (the parent process). This means that every process except the first one, is created by a parent process. The parent process is usually a shell. The shell process has the process id (pid) 1. The child processes get pid numbers in ascending order. The pid number is used to identify the process. The pid number is unique and can not be reused. When a process is terminated, the pid number is freed and can be reused by another process.
-## Child Process Module
-The child process module provides the ability to spawn child processes in a manner that is similar, but not identical, to popen(3). This capability is primarily provided by the child_process.spawn() function:
-```javascript
-const { spawn } = require('child_process');
-const ls = spawn('ls', ['-lh', '/usr']);
-ls.stdout.on('data', (data) => {
-  console.log(`stdout: ${data}`);
-});
-ls.stderr.on('data', (data) => {
-  console.error(`stderr: ${data}`);
-});
-ls.on('close', (code) => {
-  console.log(`child process exited with code ${code}`);
-});
+## Native modules on Node.js
+### Getting started
+1. Install [Node.js](https://nodejs.org/en/download/)
+2. Install [node-gyp] npm package globally: `npm install -g node-gyp`
+3. Get installed VS version: `npm config get msvs_version` take care of that when you try to execute the command node-gyp configure
+4. Install [Python 2.7](https://www.python.org/downloads/) (required by node-gyp)
+5. Install [Visual Studio](https://www.visualstudio.com/downloads/) (required by node-gyp)
+
+### Building native modules
+1. Create a new folder for your project
+2. Create a new file named `binding.gyp` with the following content:
+```json
+{
+  "targets": [
+    {
+      "target_name": "hello",
+      "sources": [ "hello.cc" ]
+    }
+  ]
+}
 ```
-The child_process.exec() function is similar to child_process.spawn() except that it creates a shell to execute the command:
-```javascript
-const { exec } = require('child_process');
-exec('cat *.js bad_file | wc -l', (error, stdout, stderr) => {
-  if (error) {
-    console.error(`exec error: ${error}`);
-    return;
-  }
-  console.log(`stdout: ${stdout}`);
-  console.error(`stderr: ${stderr}`);
-});
+3. Create a new file named `hello.cc` with the following content:
+```cpp
+// hello.cc
+#include <node.h>
+
+namespace demo {
+//Funciones que necesita node para cargar el modulo
+using v8::FunctionCallbackInfo;
+using v8::Isolate;
+using v8::Local;
+using v8::Object;
+using v8::String;
+using v8::Value;
+
+//Funcion que se ejecuta cuando se llama al modulo
+void Method(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
+  args.GetReturnValue().Set(String::NewFromUtf8(
+      isolate, "world").ToLocalChecked());
+}
+
+//Funcion que se ejecuta cuando se carga el modulo
+void Initialize(Local<Object> exports) {
+  NODE_SET_METHOD(exports, "hello", Method);
+}
+//Se registra el modulo
+NODE_MODULE(NODE_GYP_MODULE_NAME, Initialize)
+
+}  // namespace demo
 ```
-The child_process.execFile() function is similar to child_process.exec() except that it does not spawn a shell by default. Rather, the specified executable file is spawned directly as a new process making it slightly more efficient than child_process.exec():
+4. Execute `node-gyp configure` to generate the build files
+5. Execute `node-gyp build` to build the module
+6. Create a new file named `main.js` with the following content:
 ```javascript
-const { execFile } = require('child_process');
-const child = execFile('node', ['--version'], (error, stdout, stderr) => {
-  if (error) {
-    throw error;
-  }
-  console.log(stdout);
-});
+const miAddon = require('./build/Release/addon');
+console.log(miAddon.hello()); // 'world'
 ```
-The child_process.fork() function is a special case of child_process.spawn() used specifically to spawn new Node.js processes. Like child_process.spawn(), a ChildProcess object is returned. The returned ChildProcess will have an additional communication channel built-in that allows messages to be passed back and forth between the parent and child. See subprocess.send() for details.
-```javascript
-const { fork } = require('child_process');
-const forked = fork('child.js');
-forked.on('message', (msg) => {
-  console.log('Message from child', msg);
-});
-forked.send({ hello: 'world' });
-```
-## References
-- https://nodejs.org/api/child_process.html
-- https://www.w3schools.com/nodejs/nodejs_child_processes.asp
-- https://www.tutorialspoint.com/nodejs/nodejs_scaling_application.htm
+7. Execute `nodemon main.js` to run the code
